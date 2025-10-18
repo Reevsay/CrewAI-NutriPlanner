@@ -1,0 +1,29 @@
+{
+  "profile_name": "senior_multiple_restrictions",
+  "generation_date": "2025-10-18T20:22:18.090608",
+  "generation_type": "demonstration",
+  "user_profile_summary": {
+    "age": 68,
+    "gender": "female",
+    "activity_level": "lightly_active",
+    "goal": "general_health",
+    "weekly_budget": 80.0,
+    "dietary_restrictions": [
+      "diabetic_friendly",
+      "heart_healthy",
+      "low_sodium",
+      "gluten_free"
+    ],
+    "allergies": [
+      "shellfish",
+      "tree_nuts"
+    ],
+    "cooking_skill": "advanced"
+  },
+  "meal_plan_stats": {
+    "total_weekly_cost": 36.75,
+    "average_daily_calories": 1750.0,
+    "target_calories": 1800,
+    "budget_utilization": 45.9375
+  }
+}

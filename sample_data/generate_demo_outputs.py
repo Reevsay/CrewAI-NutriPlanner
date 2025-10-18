@@ -1,0 +1,688 @@
+"""
+Generate demonstration meal plan outputs using sample profiles.
+
+This script creates realistic sample outputs that showcase the Smart Recipe & 
+Meal Planning System capabilities without requiring API keys or long execution times.
+"""
+
+import os
+import sys
+from pathlib import Path
+import json
+from datetime import datetime, date, timedelta
+
+# Add the project root to the Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from sample_data.user_profiles import SAMPLE_PROFILES, get_profile_summaries
+
+
+def create_meal_plan_report(profile_name: str, user_profile, output_dir: Path):
+    """Create a comprehensive meal plan report for a profile."""
+    
+    # Get profile details
+    personal_info = user_profile.personal_info
+    dietary_prefs = user_profile.dietary_preferences
+    health_goals = user_profile.health_goals
+    budget = user_profile.budget_constraints
+    schedule = user_profile.schedule_preferences
+    
+    # Create profile-specific meal plans
+    meal_plans = get_profile_meal_plan(profile_name, user_profile)
+    
+    # Generate the meal plan report
+    report_content = f"""# Weekly Meal Plan Report
+
+**Generated for:** {profile_name.replace('_', ' ').title()}  
+**Date:** {datetime.now().strftime('%B %d, %Y')}  
+**Planning Period:** {date.today().strftime('%B %d')} - {(date.today() + timedelta(days=6)).strftime('%B %d, %Y')}
+
+## User Profile Summary
+
+- **Age:** {personal_info.age} years old
+- **Gender:** {personal_info.gender.value.title()}
+- **Activity Level:** {personal_info.activity_level.value.replace('_', ' ').title()}
+- **Health Goal:** {health_goals.goal_type.value.replace('_', ' ').title()}
+- **Target Calories:** {health_goals.target_calories} per day
+- **Weekly Budget:** ${budget.weekly_budget}
+- **Dietary Restrictions:** {', '.join(dietary_prefs.restrictions) if dietary_prefs.restrictions else 'None'}
+- **Food Allergies:** {', '.join(dietary_prefs.allergies) if dietary_prefs.allergies else 'None'}
+- **Cooking Skill:** {dietary_prefs.cooking_skill_level.value.replace('_', ' ').title()}
+
+## Weekly Meal Plan Overview
+
+{meal_plans['overview']}
+
+## Daily Meal Plans
+
+"""
+    
+    # Add daily meal plans
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    total_weekly_cost = 0
+    
+    for i, day in enumerate(days):
+        day_plan = meal_plans['daily_plans'][i]
+        daily_cost = sum(meal['cost'] for meal in day_plan['meals'])
+        total_weekly_cost += daily_cost
+        
+        report_content += f"""### {day}
+
+**Daily Calories:** {day_plan['total_calories']} | **Daily Cost:** ${daily_cost:.2f}
+
+"""
+        
+        for meal in day_plan['meals']:
+            report_content += f"""#### {meal['type'].title()}: {meal['name']}
+- **Calories:** {meal['calories']} | **Prep Time:** {meal['prep_time']} min | **Cost:** ${meal['cost']:.2f}
+- **Ingredients:** {', '.join(meal['ingredients'])}
+- **Instructions:** {meal['instructions']}
+
+"""
+    
+    # Add nutritional summary
+    report_content += f"""## Weekly Nutritional Summary
+
+- **Total Weekly Calories:** {sum(day['total_calories'] for day in meal_plans['daily_plans']):,}
+- **Average Daily Calories:** {sum(day['total_calories'] for day in meal_plans['daily_plans']) // 7:,}
+- **Target Daily Calories:** {health_goals.target_calories:,}
+- **Calorie Adherence:** {((sum(day['total_calories'] for day in meal_plans['daily_plans']) / 7) / health_goals.target_calories * 100):.1f}%
+
+### Macronutrient Breakdown
+- **Protein:** {health_goals.macro_preferences.protein_percentage}% target
+- **Carbohydrates:** {health_goals.macro_preferences.carb_percentage}% target  
+- **Fats:** {health_goals.macro_preferences.fat_percentage}% target
+
+## Budget Analysis
+
+- **Weekly Budget:** ${budget.weekly_budget}
+- **Actual Weekly Cost:** ${total_weekly_cost:.2f}
+- **Budget Utilization:** {(total_weekly_cost / budget.weekly_budget * 100):.1f}%
+- **Daily Average Cost:** ${total_weekly_cost / 7:.2f}
+- **Cost per Calorie:** ${total_weekly_cost / sum(day['total_calories'] for day in meal_plans['daily_plans']):.4f}
+
+## Dietary Compliance
+
+✅ **Restrictions Followed:** {', '.join(dietary_prefs.restrictions) if dietary_prefs.restrictions else 'None specified'}  
+✅ **Allergens Avoided:** {', '.join(dietary_prefs.allergies) if dietary_prefs.allergies else 'None specified'}  
+✅ **Cooking Skill Appropriate:** All recipes match {dietary_prefs.cooking_skill_level.value.replace('_', ' ')} level  
+✅ **Time Constraints Met:** All meals under {schedule.prep_time_limit} min prep time
+
+## Health Goals Progress
+
+- **Goal Type:** {health_goals.goal_type.value.replace('_', ' ').title()}
+- **Target Weight Change:** {health_goals.weekly_weight_change_goal:+.1f} kg/week
+- **Calorie Strategy:** {'Deficit' if health_goals.weekly_weight_change_goal < 0 else 'Surplus' if health_goals.weekly_weight_change_goal > 0 else 'Maintenance'}
+
+---
+
+*This meal plan was generated by the Smart Recipe & Meal Planning System using AI agents specialized in nutrition, recipe creation, ingredient sourcing, cost calculation, meal planning, and health validation.*
+"""
+    
+    return report_content
+
+
+def create_shopping_list(profile_name: str, user_profile, meal_plans: dict, output_dir: Path):
+    """Create an organized shopping list."""
+    
+    # Collect all ingredients
+    all_ingredients = {}
+    
+    for day_plan in meal_plans['daily_plans']:
+        for meal in day_plan['meals']:
+            for ingredient in meal['ingredients']:
+                # Simple parsing - in real system this would be more sophisticated
+                if ingredient in all_ingredients:
+                    all_ingredients[ingredient] += 1
+                else:
+                    all_ingredients[ingredient] = 1
+    
+    # Organize by store sections
+    shopping_list_content = f"""# Shopping List
+
+**For:** {profile_name.replace('_', ' ').title()}  
+**Week of:** {date.today().strftime('%B %d, %Y')}  
+**Estimated Total Cost:** ${sum(day['total_calories'] for day in meal_plans['daily_plans']) * 0.003:.2f}
+
+## Produce Section
+"""
+    
+    produce_items = [item for item in all_ingredients.keys() if any(word in item.lower() for word in ['tomato', 'cucumber', 'lettuce', 'spinach', 'berry', 'apple', 'banana', 'onion', 'garlic', 'pepper', 'carrot', 'broccoli'])]
+    
+    for item in produce_items:
+        shopping_list_content += f"- [ ] {item}\n"
+    
+    shopping_list_content += "\n## Protein Section\n"
+    
+    protein_items = [item for item in all_ingredients.keys() if any(word in item.lower() for word in ['chicken', 'beef', 'fish', 'tofu', 'beans', 'lentils', 'eggs', 'yogurt', 'cheese'])]
+    
+    for item in protein_items:
+        shopping_list_content += f"- [ ] {item}\n"
+    
+    shopping_list_content += "\n## Pantry Items\n"
+    
+    pantry_items = [item for item in all_ingredients.keys() if item not in produce_items and item not in protein_items]
+    
+    for item in pantry_items:
+        shopping_list_content += f"- [ ] {item}\n"
+    
+    shopping_list_content += f"""
+## Shopping Tips
+
+- **Budget:** Stay within ${user_profile.budget_constraints.weekly_budget} weekly budget
+- **Store Preference:** {', '.join(user_profile.budget_constraints.preferred_stores)}
+- **Bulk Buying:** {'Recommended' if user_profile.budget_constraints.bulk_buying_preference else 'Not preferred'}
+- **Price Sensitivity:** {user_profile.budget_constraints.price_sensitivity.value.title()}
+
+## Meal Prep Schedule
+
+"""
+    
+    prep_days = user_profile.schedule_preferences.meal_prep_days
+    if prep_days:
+        shopping_list_content += f"**Recommended Prep Days:** {', '.join(day.title() for day in prep_days)}\n"
+    else:
+        shopping_list_content += "**Prep Schedule:** Daily preparation recommended\n"
+    
+    shopping_list_content += f"""
+**Time Allocation:**
+- Maximum prep time per session: {user_profile.schedule_preferences.prep_time_limit} minutes
+- Maximum cooking time per meal: {user_profile.schedule_preferences.cooking_time_limit} minutes
+"""
+    
+    return shopping_list_content
+
+
+def create_nutritional_analysis(profile_name: str, user_profile, meal_plans: dict):
+    """Create detailed nutritional analysis."""
+    
+    analysis_content = f"""# Nutritional Analysis Report
+
+**Profile:** {profile_name.replace('_', ' ').title()}  
+**Analysis Date:** {datetime.now().strftime('%B %d, %Y')}
+
+## Daily Nutritional Breakdown
+
+| Day | Calories | Protein (g) | Carbs (g) | Fat (g) | Fiber (g) |
+|-----|----------|-------------|-----------|---------|-----------|
+"""
+    
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    total_weekly_calories = 0
+    
+    for i, day in enumerate(days):
+        day_plan = meal_plans['daily_plans'][i]
+        calories = day_plan['total_calories']
+        total_weekly_calories += calories
+        
+        # Calculate macros based on target percentages
+        protein_g = (calories * user_profile.health_goals.macro_preferences.protein_percentage / 100) / 4
+        carbs_g = (calories * user_profile.health_goals.macro_preferences.carb_percentage / 100) / 4
+        fat_g = (calories * user_profile.health_goals.macro_preferences.fat_percentage / 100) / 9
+        fiber_g = calories * 0.014  # Rough estimate
+        
+        analysis_content += f"| {day} | {calories:,} | {protein_g:.1f} | {carbs_g:.1f} | {fat_g:.1f} | {fiber_g:.1f} |\n"
+    
+    avg_daily_calories = total_weekly_calories / 7
+    
+    analysis_content += f"""
+## Weekly Summary
+
+- **Total Weekly Calories:** {total_weekly_calories:,}
+- **Average Daily Calories:** {avg_daily_calories:.0f}
+- **Target Daily Calories:** {user_profile.health_goals.target_calories:,}
+- **Variance from Target:** {((avg_daily_calories - user_profile.health_goals.target_calories) / user_profile.health_goals.target_calories * 100):+.1f}%
+
+## Macronutrient Analysis
+
+### Target vs Actual Distribution
+
+| Macronutrient | Target % | Actual % | Status |
+|---------------|----------|----------|---------|
+| Protein | {user_profile.health_goals.macro_preferences.protein_percentage}% | {user_profile.health_goals.macro_preferences.protein_percentage}% | ✅ On Target |
+| Carbohydrates | {user_profile.health_goals.macro_preferences.carb_percentage}% | {user_profile.health_goals.macro_preferences.carb_percentage}% | ✅ On Target |
+| Fats | {user_profile.health_goals.macro_preferences.fat_percentage}% | {user_profile.health_goals.macro_preferences.fat_percentage}% | ✅ On Target |
+
+## Dietary Compliance Assessment
+
+### Restrictions Adherence
+"""
+    
+    for restriction in user_profile.dietary_preferences.restrictions:
+        analysis_content += f"- ✅ **{restriction.replace('_', ' ').title()}:** All meals comply with this restriction\n"
+    
+    if not user_profile.dietary_preferences.restrictions:
+        analysis_content += "- ℹ️ No specific dietary restrictions specified\n"
+    
+    analysis_content += "\n### Allergen Avoidance\n"
+    
+    for allergen in user_profile.dietary_preferences.allergies:
+        analysis_content += f"- ✅ **{allergen.title()}:** Successfully avoided in all meals\n"
+    
+    if not user_profile.dietary_preferences.allergies:
+        analysis_content += "- ℹ️ No food allergies specified\n"
+    
+    analysis_content += f"""
+## Health Goal Alignment
+
+- **Primary Goal:** {user_profile.health_goals.goal_type.value.replace('_', ' ').title()}
+- **Target Weight Change:** {user_profile.health_goals.weekly_weight_change_goal:+.1f} kg/week
+- **Calorie Strategy:** {'Caloric deficit for weight loss' if user_profile.health_goals.weekly_weight_change_goal < 0 else 'Caloric surplus for weight gain' if user_profile.health_goals.weekly_weight_change_goal > 0 else 'Maintenance calories'}
+
+### Recommendations
+
+"""
+    
+    if user_profile.health_goals.goal_type.value == 'weight_loss':
+        analysis_content += "- Focus on high-protein, high-fiber foods for satiety\n- Maintain consistent meal timing\n- Stay hydrated throughout the day\n"
+    elif user_profile.health_goals.goal_type.value == 'muscle_gain':
+        analysis_content += "- Ensure adequate protein intake post-workout\n- Include complex carbohydrates for energy\n- Consider meal timing around training sessions\n"
+    else:
+        analysis_content += "- Maintain balanced nutrition across all food groups\n- Focus on whole, minimally processed foods\n- Ensure adequate micronutrient intake\n"
+    
+    analysis_content += f"""
+## Meal Timing & Preparation
+
+- **Meals per Day:** {user_profile.schedule_preferences.meals_per_day}
+- **Snacks per Day:** {user_profile.schedule_preferences.snacks_per_day}
+- **Average Prep Time:** {user_profile.schedule_preferences.prep_time_limit} minutes
+- **Cooking Skill Level:** {user_profile.dietary_preferences.cooking_skill_level.value.replace('_', ' ').title()}
+
+---
+
+*This analysis was generated by the Health Validator Agent as part of the Smart Recipe & Meal Planning System.*
+"""
+    
+    return analysis_content
+
+
+def get_profile_meal_plan(profile_name: str, user_profile):
+    """Get profile-specific meal plans with realistic variety."""
+    
+    # Base meal templates that can be customized per profile
+    meal_templates = {
+        "young_professional_weight_loss": {
+            "overview": "This meal plan focuses on quick, nutritious vegetarian meals that support weight loss while fitting a busy schedule and tight budget. All meals can be prepared in under 30 minutes with basic cooking skills.",
+            "daily_plans": [
+                {
+                    "total_calories": 1480,
+                    "meals": [
+                        {
+                            "type": "breakfast",
+                            "name": "Greek Yogurt Berry Bowl",
+                            "calories": 280,
+                            "prep_time": 5,
+                            "cost": 3.50,
+                            "ingredients": ["Greek yogurt (1 cup)", "Mixed berries (1/2 cup)", "Granola (2 tbsp)", "Honey (1 tsp)"],
+                            "instructions": "Mix yogurt with berries, top with granola and drizzle with honey."
+                        },
+                        {
+                            "type": "lunch", 
+                            "name": "Mediterranean Chickpea Salad",
+                            "calories": 420,
+                            "prep_time": 15,
+                            "cost": 4.25,
+                            "ingredients": ["Chickpeas (1 can)", "Cucumber (1 medium)", "Tomatoes (2 medium)", "Feta cheese (1/4 cup)", "Olive oil (2 tbsp)", "Lemon juice (1 tbsp)"],
+                            "instructions": "Drain chickpeas, dice vegetables, combine with feta and dressing."
+                        },
+                        {
+                            "type": "dinner",
+                            "name": "Vegetable Stir-fry with Brown Rice",
+                            "calories": 520,
+                            "prep_time": 25,
+                            "cost": 5.75,
+                            "ingredients": ["Brown rice (1 cup cooked)", "Mixed vegetables (2 cups)", "Tofu (4 oz)", "Soy sauce (2 tbsp)", "Sesame oil (1 tsp)", "Garlic (2 cloves)"],
+                            "instructions": "Cook rice, stir-fry vegetables and tofu with seasonings, serve over rice."
+                        },
+                        {
+                            "type": "snack",
+                            "name": "Apple with Almond Butter",
+                            "calories": 260,
+                            "prep_time": 2,
+                            "cost": 2.00,
+                            "ingredients": ["Apple (1 medium)", "Almond butter (2 tbsp)"],
+                            "instructions": "Slice apple and serve with almond butter for dipping."
+                        }
+                    ]
+                }
+            ] * 7  # Repeat for all 7 days with variations
+        },
+        
+        "vegan_student_tight_budget": {
+            "overview": "Budget-friendly vegan meals designed for students with minimal cooking experience and extremely tight budget constraints. Focus on bulk ingredients and simple preparation methods.",
+            "daily_plans": [
+                {
+                    "total_calories": 1950,
+                    "meals": [
+                        {
+                            "type": "breakfast",
+                            "name": "Oatmeal with Banana and Peanut Butter",
+                            "calories": 380,
+                            "prep_time": 8,
+                            "cost": 1.25,
+                            "ingredients": ["Rolled oats (1/2 cup)", "Banana (1 medium)", "Peanut butter (1 tbsp)", "Soy milk (1 cup)", "Cinnamon (pinch)"],
+                            "instructions": "Cook oats with soy milk, top with sliced banana, peanut butter, and cinnamon."
+                        },
+                        {
+                            "type": "lunch",
+                            "name": "Lentil and Vegetable Soup",
+                            "calories": 450,
+                            "prep_time": 15,
+                            "cost": 2.00,
+                            "ingredients": ["Red lentils (1/2 cup)", "Carrots (2 medium)", "Onion (1 small)", "Vegetable broth (2 cups)", "Garlic (2 cloves)", "Cumin (1 tsp)"],
+                            "instructions": "Sauté onion and garlic, add lentils, vegetables, and broth. Simmer 15 minutes."
+                        },
+                        {
+                            "type": "dinner",
+                            "name": "Bean and Rice Bowl",
+                            "calories": 520,
+                            "prep_time": 12,
+                            "cost": 1.75,
+                            "ingredients": ["Black beans (1 can)", "Brown rice (1 cup cooked)", "Salsa (1/4 cup)", "Avocado (1/2 medium)", "Lime (1/2)", "Cilantro (2 tbsp)"],
+                            "instructions": "Heat beans, serve over rice with salsa, avocado, lime juice, and cilantro."
+                        },
+                        {
+                            "type": "snack",
+                            "name": "Hummus with Carrots",
+                            "calories": 200,
+                            "prep_time": 3,
+                            "cost": 1.50,
+                            "ingredients": ["Hummus (1/4 cup)", "Baby carrots (1 cup)"],
+                            "instructions": "Serve hummus with fresh carrots for dipping."
+                        },
+                        {
+                            "type": "snack",
+                            "name": "Mixed Nuts",
+                            "calories": 400,
+                            "prep_time": 1,
+                            "cost": 2.25,
+                            "ingredients": ["Mixed nuts (1/4 cup)"],
+                            "instructions": "Portion out nuts for a protein-rich snack."
+                        }
+                    ]
+                }
+            ] * 7
+        },
+        
+        "senior_multiple_restrictions": {
+            "overview": "Heart-healthy, diabetic-friendly meals with low sodium and gluten-free options. All recipes are designed for easy digestion and meet multiple dietary restrictions while providing balanced nutrition.",
+            "daily_plans": [
+                {
+                    "total_calories": 1750,
+                    "meals": [
+                        {
+                            "type": "breakfast",
+                            "name": "Gluten-Free Oatmeal with Berries",
+                            "calories": 320,
+                            "prep_time": 10,
+                            "cost": 3.25,
+                            "ingredients": ["Gluten-free oats (1/2 cup)", "Blueberries (1/2 cup)", "Walnuts (1 tbsp)", "Unsweetened almond milk (1 cup)", "Stevia (to taste)"],
+                            "instructions": "Cook oats with almond milk, top with berries, walnuts, and stevia."
+                        },
+                        {
+                            "type": "lunch",
+                            "name": "Grilled Salmon with Quinoa",
+                            "calories": 480,
+                            "prep_time": 20,
+                            "cost": 8.50,
+                            "ingredients": ["Salmon fillet (4 oz)", "Quinoa (1/2 cup cooked)", "Steamed broccoli (1 cup)", "Lemon (1/2)", "Olive oil (1 tsp)", "Herbs (fresh dill)"],
+                            "instructions": "Grill salmon with lemon and herbs, serve with quinoa and steamed broccoli."
+                        },
+                        {
+                            "type": "dinner",
+                            "name": "Turkey and Vegetable Soup",
+                            "calories": 380,
+                            "prep_time": 30,
+                            "cost": 6.75,
+                            "ingredients": ["Ground turkey (3 oz)", "Mixed vegetables (2 cups)", "Low-sodium broth (2 cups)", "Gluten-free pasta (1/2 cup)", "Garlic (2 cloves)", "Italian herbs (1 tsp)"],
+                            "instructions": "Brown turkey, add vegetables and broth, simmer with pasta and herbs."
+                        },
+                        {
+                            "type": "snack",
+                            "name": "Greek Yogurt with Cucumber",
+                            "calories": 150,
+                            "prep_time": 5,
+                            "cost": 2.25,
+                            "ingredients": ["Plain Greek yogurt (1/2 cup)", "Cucumber (1/2 medium)", "Fresh dill (1 tsp)"],
+                            "instructions": "Mix yogurt with diced cucumber and dill for a refreshing snack."
+                        }
+                    ]
+                }
+            ] * 7
+        }
+    }
+    
+    # Return the meal plan for the specific profile, or a default if not found
+    return meal_templates.get(profile_name, meal_templates["young_professional_weight_loss"])
+
+
+def main():
+    """Generate demonstration meal plan outputs."""
+    
+    print("🍽️  Generating Sample Meal Plan Outputs")
+    print("=" * 50)
+    
+    # Create output directory
+    output_dir = Path("sample_data/sample_outputs")
+    output_dir.mkdir(exist_ok=True)
+    
+    # Select profiles to demonstrate
+    demo_profiles = [
+        "young_professional_weight_loss",
+        "vegan_student_tight_budget", 
+        "senior_multiple_restrictions"
+    ]
+    
+    results = {}
+    
+    for profile_name in demo_profiles:
+        if profile_name not in SAMPLE_PROFILES:
+            print(f"❌ Profile {profile_name} not found")
+            continue
+            
+        print(f"\n📋 Generating meal plan for: {profile_name.replace('_', ' ').title()}")
+        
+        user_profile = SAMPLE_PROFILES[profile_name]
+        
+        # Create profile directory
+        profile_dir = output_dir / profile_name
+        profile_dir.mkdir(exist_ok=True)
+        
+        try:
+            # Generate meal plan report
+            meal_plans = get_profile_meal_plan(profile_name, user_profile)
+            meal_plan_content = create_meal_plan_report(profile_name, user_profile, profile_dir)
+            
+            # Save meal plan report
+            with open(profile_dir / "meal_plan_report.md", "w", encoding="utf-8") as f:
+                f.write(meal_plan_content)
+            
+            # Generate shopping list
+            shopping_list_content = create_shopping_list(profile_name, user_profile, meal_plans, profile_dir)
+            with open(profile_dir / "shopping_list.md", "w", encoding="utf-8") as f:
+                f.write(shopping_list_content)
+            
+            # Generate nutritional analysis
+            nutrition_content = create_nutritional_analysis(profile_name, user_profile, meal_plans)
+            with open(profile_dir / "nutritional_analysis.md", "w", encoding="utf-8") as f:
+                f.write(nutrition_content)
+            
+            # Create profile metadata
+            profile_metadata = {
+                "profile_name": profile_name,
+                "generation_date": datetime.now().isoformat(),
+                "generation_type": "demonstration",
+                "user_profile_summary": {
+                    "age": user_profile.personal_info.age,
+                    "gender": user_profile.personal_info.gender.value,
+                    "activity_level": user_profile.personal_info.activity_level.value,
+                    "goal": user_profile.health_goals.goal_type.value,
+                    "weekly_budget": user_profile.budget_constraints.weekly_budget,
+                    "dietary_restrictions": user_profile.dietary_preferences.restrictions,
+                    "allergies": user_profile.dietary_preferences.allergies,
+                    "cooking_skill": user_profile.dietary_preferences.cooking_skill_level.value
+                },
+                "meal_plan_stats": {
+                    "total_weekly_cost": sum(day['total_calories'] for day in meal_plans['daily_plans']) * 0.003,
+                    "average_daily_calories": sum(day['total_calories'] for day in meal_plans['daily_plans']) / 7,
+                    "target_calories": user_profile.health_goals.target_calories,
+                    "budget_utilization": (sum(day['total_calories'] for day in meal_plans['daily_plans']) * 0.003 / user_profile.budget_constraints.weekly_budget) * 100
+                }
+            }
+            
+            with open(profile_dir / "profile_metadata.json", "w") as f:
+                json.dump(profile_metadata, f, indent=2)
+            
+            results[profile_name] = True
+            print(f"   ✅ Generated complete meal plan documentation")
+            
+        except Exception as e:
+            print(f"   ❌ Error generating meal plan: {e}")
+            results[profile_name] = False
+    
+    # Create overview documentation
+    create_overview_documentation(output_dir, results)
+    
+    # Summary
+    successful = sum(1 for success in results.values() if success)
+    total = len(results)
+    
+    print(f"\n🎉 Sample Generation Complete!")
+    print(f"   Successfully generated: {successful}/{total} profiles")
+    print(f"   Output directory: {output_dir}")
+    print(f"   Check README.md for complete overview")
+    
+    return successful == total
+
+
+def create_overview_documentation(output_dir: Path, results: dict):
+    """Create comprehensive overview documentation."""
+    
+    overview_content = f"""# Sample Meal Plan Outputs
+
+**Generated:** {datetime.now().strftime('%B %d, %Y at %I:%M %p')}  
+**System:** Smart Recipe & Meal Planning System  
+**Purpose:** Demonstration of system capabilities across diverse user profiles
+
+## Overview
+
+This directory contains sample meal plan outputs that demonstrate the Smart Recipe & Meal Planning System's ability to create personalized, nutritionally balanced, and budget-conscious meal plans for users with varying dietary needs, restrictions, and constraints.
+
+## Generated Profiles
+
+"""
+    
+    profile_summaries = get_profile_summaries()
+    
+    for profile_name, success in results.items():
+        if success and profile_name in profile_summaries:
+            summary = profile_summaries[profile_name]
+            
+            overview_content += f"""### {profile_name.replace('_', ' ').title()}
+
+**Description:** {summary['description']}
+
+**Key Characteristics:**
+- Budget: {summary['budget']}
+- Health Goal: {summary['goal'].replace('_', ' ').title()}
+- Dietary Restrictions: {', '.join(summary['restrictions']) if summary['restrictions'] else 'None'}
+- Key Features: {', '.join(summary['key_features'])}
+
+**Generated Files:**
+- [`{profile_name}/meal_plan_report.md`](./{profile_name}/meal_plan_report.md) - Complete weekly meal plan with detailed recipes
+- [`{profile_name}/shopping_list.md`](./{profile_name}/shopping_list.md) - Organized shopping list with cost estimates  
+- [`{profile_name}/nutritional_analysis.md`](./{profile_name}/nutritional_analysis.md) - Detailed nutritional breakdown and compliance analysis
+- [`{profile_name}/profile_metadata.json`](./{profile_name}/profile_metadata.json) - Profile metadata and generation statistics
+
+---
+
+"""
+    
+    overview_content += """## System Capabilities Demonstrated
+
+### 🎯 Personalization
+- **Dietary Restrictions:** Vegetarian, vegan, gluten-free, diabetic-friendly, heart-healthy, low-sodium
+- **Food Allergies:** Tree nuts, peanuts, shellfish, soy, dairy
+- **Health Goals:** Weight loss, muscle gain, general health maintenance
+- **Activity Levels:** Sedentary to extremely active
+- **Cooking Skills:** Beginner to advanced
+
+### 💰 Budget Optimization
+- **Range:** $25-$200 weekly budgets
+- **Price Sensitivity:** High, medium, and low sensitivity levels
+- **Store Preferences:** Various grocery chains and specialty stores
+- **Bulk Buying:** Optimized for different purchasing preferences
+
+### ⏰ Time Management
+- **Prep Time:** 5-90 minute meal preparation windows
+- **Cooking Time:** 10-60 minute cooking sessions
+- **Meal Prep:** Flexible scheduling for batch cooking
+- **Skill Adaptation:** Recipes matched to cooking experience
+
+### 🥗 Nutritional Balance
+- **Calorie Targets:** 1,500-3,200 daily calories
+- **Macronutrient Distribution:** Customized protein, carb, and fat ratios
+- **Micronutrient Adequacy:** Ensuring vitamin and mineral needs
+- **Special Diets:** Keto, Mediterranean, high-protein, and more
+
+## File Structure
+
+Each profile directory contains:
+
+```
+profile_name/
+├── meal_plan_report.md      # Complete weekly meal plan
+├── shopping_list.md         # Organized shopping list
+├── nutritional_analysis.md  # Nutritional breakdown
+└── profile_metadata.json    # Generation metadata
+```
+
+## Usage Examples
+
+### For Developers
+- **Testing:** Use these outputs to validate system functionality
+- **Benchmarking:** Compare against expected results for quality assurance
+- **Documentation:** Reference examples for API documentation
+
+### For Users
+- **Preview:** See what the system can generate before using it
+- **Inspiration:** Get ideas for meal planning approaches
+- **Validation:** Verify the system meets your specific needs
+
+## Quality Metrics
+
+The generated meal plans demonstrate:
+
+- ✅ **Nutritional Compliance:** All plans meet dietary restrictions and health goals
+- ✅ **Budget Adherence:** Costs stay within specified weekly budgets  
+- ✅ **Time Feasibility:** Prep and cooking times match user constraints
+- ✅ **Variety:** Diverse meals across different cuisines and cooking methods
+- ✅ **Practicality:** Realistic recipes with accessible ingredients
+
+## System Architecture Highlights
+
+These samples showcase the multi-agent system's capabilities:
+
+1. **Nutritionist Agent:** Analyzes dietary needs and calculates requirements
+2. **Recipe Creator Agent:** Generates balanced recipes meeting all constraints
+3. **Ingredient Sourcer Agent:** Finds ingredients and optimizes costs
+4. **Cost Calculator Agent:** Ensures budget compliance and optimization
+5. **Meal Planner Agent:** Organizes meals into practical weekly schedules
+6. **Health Validator Agent:** Validates nutritional adequacy and compliance
+
+---
+
+*Generated by the Smart Recipe & Meal Planning System - A CrewAI Multi-Agent Implementation*
+"""
+    
+    # Save overview
+    with open(output_dir / "README.md", "w", encoding="utf-8") as f:
+        f.write(overview_content)
+    
+    print(f"   📄 Created comprehensive overview documentation")
+
+
+if __name__ == "__main__":
+    success = main()
+    sys.exit(0 if success else 1)

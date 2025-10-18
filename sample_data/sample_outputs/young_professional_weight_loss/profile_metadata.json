@@ -1,0 +1,23 @@
+{
+  "profile_name": "young_professional_weight_loss",
+  "generation_date": "2025-10-18T20:22:18.084088",
+  "generation_type": "demonstration",
+  "user_profile_summary": {
+    "age": 28,
+    "gender": "female",
+    "activity_level": "lightly_active",
+    "goal": "weight_loss",
+    "weekly_budget": 50.0,
+    "dietary_restrictions": [
+      "vegetarian"
+    ],
+    "allergies": [],
+    "cooking_skill": "beginner"
+  },
+  "meal_plan_stats": {
+    "total_weekly_cost": 31.080000000000002,
+    "average_daily_calories": 1480.0,
+    "target_calories": 1500,
+    "budget_utilization": 62.160000000000004
+  }
+}

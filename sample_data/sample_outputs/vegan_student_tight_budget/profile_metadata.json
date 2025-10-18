@@ -1,0 +1,27 @@
+{
+  "profile_name": "vegan_student_tight_budget",
+  "generation_date": "2025-10-18T20:22:18.087092",
+  "generation_type": "demonstration",
+  "user_profile_summary": {
+    "age": 20,
+    "gender": "other",
+    "activity_level": "moderately_active",
+    "goal": "maintenance",
+    "weekly_budget": 25.0,
+    "dietary_restrictions": [
+      "vegan",
+      "nut_free"
+    ],
+    "allergies": [
+      "tree_nuts",
+      "peanuts"
+    ],
+    "cooking_skill": "beginner"
+  },
+  "meal_plan_stats": {
+    "total_weekly_cost": 40.95,
+    "average_daily_calories": 1950.0,
+    "target_calories": 2000,
+    "budget_utilization": 163.8
+  }
+}
